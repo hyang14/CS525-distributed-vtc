@@ -1,0 +1,7 @@
+#Use vm04 as head
+bash run_cluster.sh \
+                rambler6/cs525-vllm \
+                172.22.153.22 \
+                --head \
+                /home/yifeim3/.cache/huggingface \
+                -e VLLM_HOST_IP=172.22.153.22
