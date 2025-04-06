@@ -1,0 +1,10 @@
+Listening on 127.0.0.1:38941
+[2025-04-05 22:10:46] info Disposed of connection to running server.
+[2025-04-05 22:10:46] info Checking /home/yifeim3/.vscode-server/cli/servers/Stable-4437686ffebaf200fa4a6e6e67f735f3edf24ada/log.txt and /home/yifeim3/.vscode-server/cli/servers/Stable-4437686ffebaf200fa4a6e6e67f735f3edf24ada/pid.txt for a running server...
+[2025-04-05 22:10:46] info Downloading Visual Studio Code server -> /tmp/.tmpZWQwfU/vscode-server-linux-x64.tar.gz
+[2025-04-05 22:10:50] info Starting server...
+[2025-04-05 22:10:50] info Server started
+[2025-04-05 22:12:16] info Disposed of connection to running server.
+[2025-04-05 22:12:18] info Disposed of connection to running server.
+[2025-04-05 22:12:18] info Checking /home/yifeim3/.vscode-server/cli/servers/Stable-4437686ffebaf200fa4a6e6e67f735f3edf24ada/log.txt and /home/yifeim3/.vscode-server/cli/servers/Stable-4437686ffebaf200fa4a6e6e67f735f3edf24ada/pid.txt for a running server...
+[2025-04-05 22:12:18] info Found running server (pid=6261)
