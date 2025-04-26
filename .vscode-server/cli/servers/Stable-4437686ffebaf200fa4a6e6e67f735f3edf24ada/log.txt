@@ -1,0 +1,49 @@
+*
+* Visual Studio Code Server
+*
+* By using the software, you agree to
+* the Visual Studio Code Server License Terms (https://aka.ms/vscode-server-license) and
+* the Microsoft Privacy Statement (https://privacy.microsoft.com/en-US/privacystatement).
+*
+Server bound to /tmp/code-fd5c5371-3e61-407a-88a6-257af2ead7ba
+Extension host agent listening on /tmp/code-fd5c5371-3e61-407a-88a6-257af2ead7ba
+
+[22:10:50] 
+
+
+
+
+[22:10:50] Extension host agent started.
+[22:10:50] Started initializing default profile extensions in extensions installation folder. file:///home/yifeim3/.vscode-server/extensions
+[22:10:50] [<unknown>][a5eda414][ExtensionHostConnection] New connection established.
+[22:10:50] [<unknown>][d01c2209][ManagementConnection] New connection established.
+[22:10:50] Completed initializing default profile extensions in extensions installation folder. file:///home/yifeim3/.vscode-server/extensions
+[22:10:50] [<unknown>][a5eda414][ExtensionHostConnection] <6305> Launched Extension Host Process.
+[22:10:54] Downloaded extension to file:///home/yifeim3/.vscode-server/data/CachedExtensionVSIXs/122efc2c-92dc-40c1-b564-b4be47571fe8
+[22:10:54] Installing extension: github.vscode-pull-request-github {
+  isApplicationScoped: false,
+  profileLocation: gr {
+    scheme: 'file',
+    authority: '',
+    path: '/home/yifeim3/.vscode-server/extensions/extensions.json',
+    query: '',
+    fragment: '',
+    _formatted: 'file:///home/yifeim3/.vscode-server/extensions/extensions.json',
+    _fsPath: '/home/yifeim3/.vscode-server/extensions/extensions.json'
+  },
+  productVersion: { version: '1.99.0', date: '2025-04-02T21:35:19.530Z' }
+}
+[22:10:54] Extracted extension to file:///home/yifeim3/.vscode-server/extensions/github.vscode-pull-request-github-0.108.0: github.vscode-pull-request-github
+[22:10:54] Renamed to /home/yifeim3/.vscode-server/extensions/github.vscode-pull-request-github-0.108.0
+[22:10:54] Extension installed successfully: github.vscode-pull-request-github file:///home/yifeim3/.vscode-server/extensions/extensions.json
+[22:12:16] [<unknown>][d01c2209][ManagementConnection] The client has disconnected gracefully, so the connection will be disposed.
+[22:12:16] [<unknown>][a5eda414][ExtensionHostConnection] <6305> Extension Host Process exited with code: 0, signal: null.
+Cancelling previous shutdown timeout
+[22:12:16] Cancelling previous shutdown timeout
+Last EH closed, waiting before shutting down
+[22:12:16] Last EH closed, waiting before shutting down
+[22:12:18] [<unknown>][ef49725e][ManagementConnection] New connection established.
+[22:12:19] [<unknown>][3cd47589][ExtensionHostConnection] New connection established.
+[22:12:19] [<unknown>][3cd47589][ExtensionHostConnection] <7048> Launched Extension Host Process.
+New EH opened, aborting shutdown
+[22:17:16] New EH opened, aborting shutdown

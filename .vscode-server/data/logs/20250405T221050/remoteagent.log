@@ -1,0 +1,24 @@
+2025-04-05 22:10:50.425 [info] 
+
+
+
+
+2025-04-05 22:10:50.438 [info] Extension host agent started.
+2025-04-05 22:10:50.505 [info] Started initializing default profile extensions in extensions installation folder. file:///home/yifeim3/.vscode-server/extensions
+2025-04-05 22:10:50.509 [info] [<unknown>][a5eda414][ExtensionHostConnection] New connection established.
+2025-04-05 22:10:50.522 [info] [<unknown>][d01c2209][ManagementConnection] New connection established.
+2025-04-05 22:10:50.543 [info] Completed initializing default profile extensions in extensions installation folder. file:///home/yifeim3/.vscode-server/extensions
+2025-04-05 22:10:50.716 [info] [<unknown>][a5eda414][ExtensionHostConnection] <6305> Launched Extension Host Process.
+2025-04-05 22:10:54.175 [info] Downloaded extension to file:///home/yifeim3/.vscode-server/data/CachedExtensionVSIXs/122efc2c-92dc-40c1-b564-b4be47571fe8
+2025-04-05 22:10:54.192 [info] Installing extension: github.vscode-pull-request-github {"isApplicationScoped":false,"profileLocation":{"$mid":1,"fsPath":"/home/yifeim3/.vscode-server/extensions/extensions.json","external":"file:///home/yifeim3/.vscode-server/extensions/extensions.json","path":"/home/yifeim3/.vscode-server/extensions/extensions.json","scheme":"file"},"productVersion":{"version":"1.99.0","date":"2025-04-02T21:35:19.530Z"}}
+2025-04-05 22:10:54.474 [info] Extracted extension to file:///home/yifeim3/.vscode-server/extensions/github.vscode-pull-request-github-0.108.0: github.vscode-pull-request-github
+2025-04-05 22:10:54.505 [info] Renamed to /home/yifeim3/.vscode-server/extensions/github.vscode-pull-request-github-0.108.0
+2025-04-05 22:10:54.547 [info] Extension installed successfully: github.vscode-pull-request-github file:///home/yifeim3/.vscode-server/extensions/extensions.json
+2025-04-05 22:12:16.827 [info] [<unknown>][d01c2209][ManagementConnection] The client has disconnected gracefully, so the connection will be disposed.
+2025-04-05 22:12:16.862 [info] [<unknown>][a5eda414][ExtensionHostConnection] <6305> Extension Host Process exited with code: 0, signal: null.
+2025-04-05 22:12:16.863 [info] Cancelling previous shutdown timeout
+2025-04-05 22:12:16.863 [info] Last EH closed, waiting before shutting down
+2025-04-05 22:12:18.996 [info] [<unknown>][ef49725e][ManagementConnection] New connection established.
+2025-04-05 22:12:19.008 [info] [<unknown>][3cd47589][ExtensionHostConnection] New connection established.
+2025-04-05 22:12:19.014 [info] [<unknown>][3cd47589][ExtensionHostConnection] <7048> Launched Extension Host Process.
+2025-04-05 22:17:16.863 [info] New EH opened, aborting shutdown

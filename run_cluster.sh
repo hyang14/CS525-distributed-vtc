@@ -30,7 +30,7 @@ cleanup() {
 trap cleanup EXIT
 
 # Command setup for head or worker node
-RAY_START_CMD="pip install ray && ray start --block"
+RAY_START_CMD="apt-get update && apt-get install -y ca-certificates && pip install ray --trusted-host pypi.org --trusted-host files.pythonhosted.org && ray start --block"
 if [ "${NODE_TYPE}" == "--head" ]; then
     RAY_START_CMD+=" --head --port=6379"
 else
