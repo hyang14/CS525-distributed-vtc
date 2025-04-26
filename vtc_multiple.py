@@ -1,96 +1,159 @@
+import asyncio
+import uuid
+from collections import deque
+from typing import List, Optional
+
+import numpy as np
+import requests
+
+from io_struct import Batch, Req
+from infer_utils import calculate_time
+from req_queue import ReqQueue
+
+
 class VTCReqQueue(ReqQueue):
+
     def __init__(self, max_total_tokens, batch_max_tokens, running_max_req_size,
-                 vm_list: list[str],
+                 adapter_dirs, fair_weights, vm_list,
                  input_price=1, output_price=2) -> None:
         super().__init__(max_total_tokens, batch_max_tokens, running_max_req_size)
         self.input_price = input_price
         self.output_price = output_price
+        self.served = {}
+        self.user_req_list = {}
 
-        self.served = {}          # user_id -> virtual tokens spent
-        self.user_req_list = {}   # user_id -> deque of requests
+        self.adapter_dirs = adapter_dirs
+        self.fair_weights = fair_weights
 
         self.vm_list = vm_list
         self.vm_index = 0
 
+        self.fairw = {}
+        for i in range(len(adapter_dirs)):
+            if i < len(fair_weights):
+                self.fairw[adapter_dirs[i]] = fair_weights[i]
+            else:
+                self.fairw[adapter_dirs[i]] = 1
+
+    # def append(self, req):
+    #     self.waiting_req_list.append(req)
+    #     if req.adapter_dir not in self.user_req_list:
+    #         self.user_req_list[req.adapter_dir] = deque([req])
+    #         self.served[req.adapter_dir] = 0
+    #     else:
+    #         self.user_req_list[req.adapter_dir].append(req)
+
+    #     if len(self.user_req_list[req.adapter_dir]) == 1:
+    #         cnts = [v for k, v in self.served.items()
+    #                   if (len(self.user_req_list[k]) > 0 and k != req.adapter_dir)]
+    #         if len(cnts) > 0:
+    #             self.served[req.adapter_dir] = max(self.served[req.adapter_dir], min(cnts))
     def append(self, req):
         self.waiting_req_list.append(req)
-        uid = req.user_id
-        if uid not in self.user_req_list:
-            self.user_req_list[uid] = deque([req])
-            self.served[uid] = 0
+
+        if req.adapter_dir not in self.user_req_list:
+            self.user_req_list[req.adapter_dir] = deque([req])
+            self.served[req.adapter_dir] = 0
+
+            # NEW: assign default fairness weight if missing
+            if req.adapter_dir not in self.fairw:
+                self.fairw[req.adapter_dir] = 1.0
         else:
-            self.user_req_list[uid].append(req)
+            self.user_req_list[req.adapter_dir].append(req)
 
-        if len(self.user_req_list[uid]) == 1:
-            cnts = [v for k, v in self.served.items() if len(self.user_req_list[k]) > 0 and k != uid]
+        if len(self.user_req_list[req.adapter_dir]) == 1:
+            cnts = [v for k, v in self.served.items()
+                    if (len(self.user_req_list[k]) > 0 and k != req.adapter_dir)]
             if cnts:
-                self.served[uid] = max(self.served[uid], min(cnts))
+                self.served[req.adapter_dir] = max(self.served[req.adapter_dir], min(cnts))
 
-    def _can_add_new_req(self, req, current_total_tokens, current_req_count):
-        est_tokens = current_total_tokens + req.input_len
-        return est_tokens <= self.max_total_tokens and current_req_count < self.running_max_req_size
 
-    def _get_next_vm(self) -> str:
+    def _init_cache_list(self, current_batch: Batch, lora_ranks):
+        if current_batch is not None:
+            self.cache_len_list = []
+            self.adapters = set()
+            self.adapter_size = 0
+            for req in current_batch.reqs:
+                self.cache_len_list.append((req.input_len + len(req.output_ids),
+                                           req.max_output_len - len(req.output_ids) - 1))
+                if req.adapter_dir not in self.adapters:
+                    self.adapter_size += lora_ranks[req.adapter_dir] * 4
+                    self.adapters.add(req.adapter_dir)
+        else:
+            self.cache_len_list = []
+            self.adapters = set()
+            self.adapter_size = 0
+
+    def _can_add_new_req(self, req, lora_ranks):
+        self.cache_len_list.append((req.input_len + 1, req.max_output_len - 1))
+        self.cache_len_list.sort(key=lambda x: -x[1])
+        if req.adapter_dir not in self.adapters:
+            self.adapter_size += lora_ranks[req.adapter_dir] * 4
+            self.adapters.add(req.adapter_dir)
+
+        left_out_len_array = np.array([e[1] for e in self.cache_len_list])
+        has_run_len_array = np.array([e[0] for e in self.cache_len_list])
+        cum_run_len_array = np.cumsum(has_run_len_array)
+        size_array = np.arange(1, len(self.cache_len_list) + 1, 1)
+
+        need_max_token_num = (left_out_len_array * size_array + cum_run_len_array).max()
+        if (need_max_token_num < self.max_total_tokens - self.adapter_size and
+            len(self.cache_len_list) <= self.running_max_req_size):
+            return True
+        else:
+            return False
+
+    def _get_next_vm(self):
         vm = self.vm_list[self.vm_index]
         self.vm_index = (self.vm_index + 1) % len(self.vm_list)
         return vm
 
-    def generate_parallel_batches(self, current_batches: dict[str, Batch] = None) -> List[tuple[Batch, str]]:
-        """
-        Generate up to N batches for N different VMs and return them as (batch, vm) tuples.
-        """
-        if current_batches is None:
-            current_batches = {}
-
-        batches_to_dispatch = []
-        local_served = dict(self.served)  # Don't mutate real state until dispatch confirmed
-
+    def generate_parallel_batches(self, current_batches: dict[str, Batch], lora_ranks: dict[str, int]):
+        dispatched_batches = []
         for _ in range(len(self.vm_list)):
-            vm = self._get_next_vm()
+            if len(self.served) == 0:
+                break
 
-            if vm in current_batches and len(current_batches[vm].reqs) >= self.running_max_req_size:
-                continue
-
+            self._init_cache_list(current_batches.get("dummy", None), lora_ranks)
             can_run_list = []
-            new_batch_total_tokens = 0
-            active_served = dict(local_served)
             abort_list = []
+            new_batch_total_tokens = 0
+            active_served = {k: v for k, v in self.served.items()}
 
-            while active_served:
-                uid = min(active_served, key=active_served.get)
-                if len(self.user_req_list[uid]) == 0:
-                    del active_served[uid]
-                    continue
-
-                req = self.user_req_list[uid][0]
-                if req.aborted:
-                    abort_list.append(req)
-                    self.user_req_list[uid].popleft()
-                    continue
-
-                if self._can_add_new_req(req, new_batch_total_tokens, len(can_run_list)):
-                    can_run_list.append(req)
-                    new_batch_total_tokens += req.input_len
-                    self.user_req_list[uid].popleft()
-
-                    cost = req.input_len * self.input_price
-                    local_served[uid] += cost
-                    active_served[uid] += cost
-                else:
+            while True:
+                if len(active_served) == 0:
                     break
+                adapter_dir = min(active_served, key=active_served.get)
+                if len(self.user_req_list[adapter_dir]) > 0:
+                    req = self.user_req_list[adapter_dir][0]
+                    if req.aborted:
+                        abort_list.append(req)
+                        self.user_req_list[adapter_dir].popleft()
+                        continue
+                    if (self._can_add_new_req(req, lora_ranks) and
+                        new_batch_total_tokens + req.input_len <= self.batch_max_tokens):
+                        can_run_list.append(req)
+                        new_batch_total_tokens += req.input_len
+                        self.user_req_list[adapter_dir].popleft()
+                        self.served[adapter_dir] += req.input_len * self.input_price / self.fairw[adapter_dir]
+                        active_served[adapter_dir] += req.input_len * self.input_price / self.fairw[adapter_dir]
+                    else:
+                        break
+                else:
+                    del active_served[adapter_dir]
 
-            if can_run_list:
-                self.waiting_req_list = [r for r in self.waiting_req_list if r not in can_run_list and r not in abort_list]
-                batch = Batch(uuid.uuid4().hex, can_run_list)
-                batches_to_dispatch.append((batch, vm))
+            if len(can_run_list) != 0:
+                new_batch = Batch(uuid.uuid4().hex, can_run_list)
+                self.waiting_req_list = [req for req in self.waiting_req_list
+                                         if req not in can_run_list and req not in abort_list]
+                vm = self._get_next_vm()
+                dispatched_batches.append((new_batch, vm))
 
-                # commit updates only if batch is successful
-                for req in can_run_list:
-                    self.served[req.user_id] = local_served[req.user_id]
-
-        return batches_to_dispatch
+        return dispatched_batches
 
     def update_counter(self, current_batch: Batch):
         for req in current_batch.reqs:
-            uid = req.user_id
-            self.served[uid] += self.output_price
+            self.served[req.adapter_dir] += 1 * self.output_price / self.fairw[req.adapter_dir]
+
+    def next_batch(self):
+        raise NotImplementedError()

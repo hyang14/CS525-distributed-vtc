@@ -1,4 +1,4 @@
-from .sampling_params import SamplingParams
+from sampling_params import SamplingParams
 from typing import Dict, List, Optional, Tuple
 import asyncio
 

@@ -2,8 +2,8 @@ import uuid
 import asyncio
 import numpy as np
 from typing import List
-from .io_struct import Batch, Req
-from .infer_utils import calculate_time
+from io_struct import Batch, Req
+from infer_utils import calculate_time
 
 
 class ReqQueue:
