@@ -1,3 +1,6 @@
 aiohttp
 numpy
 tqdm
+fastapi
+uvicorn
+uvloop

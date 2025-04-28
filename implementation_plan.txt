@@ -1,0 +1,14 @@
+baseline experiment with plain vtc and round robin
+    - two clients sending requests with different rate (figure 3 in vtc paper)
+        -scheduler
+        -engine wrapper for vllm serving 
+
+full design with latency + vtc based scheduler and round robin
+
+full design with latency + vtc based scheduler and prequel
+
+
+
+todo now
+- implement scheduler to understand what is needed from the serving engine
+
