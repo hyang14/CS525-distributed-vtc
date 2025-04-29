@@ -4,3 +4,5 @@ tqdm
 fastapi
 uvicorn
 uvloop
+zmq
+transformers

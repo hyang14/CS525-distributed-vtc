@@ -21,7 +21,7 @@ import uvicorn
 from .sampling_params import SamplingParams
 from .httpserver.manager import HttpServerManager
 # from .detokenization.manager import start_detokenization_process
-# from .router.manager import start_router_process
+from .router.new_manager import start_router_process
 
 from fairload.utils.net_utils import alloc_can_use_network_port
 from fairload.common.configs.config import setting
@@ -59,6 +59,59 @@ def create_error_response(status_code: HTTPStatus, message: str) -> JSONResponse
 @app.get("/health")
 def healthcheck():
     return "OK"
+
+@app.post("/generate_stream")
+async def generate_stream(request: Request) -> Response:
+    global isFirst
+    if isFirst:
+        loop = asyncio.get_event_loop()
+        loop.create_task(httpserver_manager.handle_loop())
+        isFirst = False
+
+    request_dict = await request.json()
+    adapter_dir = request_dict["lora_dir"] if "lora_dir" in request_dict else None
+    prompt = request_dict.pop("inputs")
+    sample_params_dict = request_dict["parameters"]
+    return_details = sample_params_dict.pop("return_details", False)
+    sampling_params = SamplingParams(**sample_params_dict)
+    sampling_params.verify()
+
+    if "req_id" in request_dict:
+        request_id = request_dict["req_id"]
+    else:
+        request_id = uuid.uuid4().hex
+    results_generator = httpserver_manager.generate(adapter_dir, prompt, sampling_params, request_id)
+
+    # Streaming case
+    async def stream_results() -> AsyncGenerator[bytes, None]:
+        async for request_output, metadata, finished in results_generator:
+            ret = {
+                "token": {
+                    "id": metadata.get("id", None),
+                    "text": request_output,
+                    "logprob": metadata.get("logprob", None),
+                    "special": False
+                },
+                "generated_text": None,
+                "finished": finished,
+                "details": None
+            }
+
+            yield ("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode(
+                "utf-8"
+            )
+
+    async def abort_request() -> None:
+        await httpserver_manager.abort(request_id)
+
+    background_tasks = BackgroundTasks()
+    # Abort the request if the client disconnects.
+    background_tasks.add_task(abort_request)
+
+    return StreamingResponse(
+        stream_results(), media_type="text/event-stream", background=background_tasks
+    )
+
 
 def print_mem_stats(args):
     model_dir = args.model_dir
@@ -196,20 +249,20 @@ def main():
         trust_remote_code=args.trust_remote_code,
         dummy=args.dummy,
     )
-    # pipe_router_reader, pipe_router_writer = mp.Pipe(duplex=False)
-    # pipe_detoken_reader, pipe_detoken_writer = mp.Pipe(duplex=False)
-    # proc_router = mp.Process(
-    #     target=start_router_process,
-    #     args=(
-    #         args,
-    #         router_port,
-    #         detokenization_port,
-    #         model_rpc_ports,
-    #         args.mode,
-    #         pipe_router_writer,
-    #     ),
-    # )
-    # proc_router.start()
+    pipe_router_reader, pipe_router_writer = mp.Pipe(duplex=False)
+    pipe_detoken_reader, pipe_detoken_writer = mp.Pipe(duplex=False)
+    proc_router = mp.Process(
+        target=start_router_process,
+        args=(
+            args,
+            router_port,
+            detokenization_port,
+            model_rpc_ports,
+            args.mode,
+            pipe_router_writer,
+        ),
+    )
+    proc_router.start()
     # proc_detoken = mp.Process(
     #     target=start_detokenization_process,
     #     args=(
