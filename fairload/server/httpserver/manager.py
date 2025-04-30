@@ -26,8 +26,10 @@ class HttpServerManager:
         self.send_to_router = context.socket(zmq.PUSH)
         self.send_to_router.connect(f"tcp://127.0.0.1:{router_port}")
 
+        #debug
         self.recv_from_detokenization = context.socket(zmq.PULL)
-        self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{httpserver_port}")
+        self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{router_port}")
+        # self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{httpserver_port}")
 
         try: 
             self.tokenizer = get_tokenizer(model_weightdir, tokenizor_mode, trust_remote_code=trust_remote_code) 
@@ -43,7 +45,8 @@ class HttpServerManager:
 
     async def generate(self, adapter_dir, prompt, sampling_params, request_id):
 
-        prompt_ids = self.tokenizer.encode(prompt)
+        # prompt_ids = self.tokenizer.encode(prompt)
+        prompt_ids = []
         prompt_tokens = len(prompt_ids)
         if prompt_tokens > self.max_req_input_len:
             raise ValueError(
@@ -59,32 +62,39 @@ class HttpServerManager:
                 f"the req token total len + 1 (input len + output len + 1) is too long > max_total_token_num:{self.total_token_num}"
             )
         
-        sampling_params.stop_sentences_to_token_ids(self.tokenizer)
+            # Directly yield the prompt as output
+        metadata = {"prompt_tokens": prompt_tokens}
+        finished = True
+        yield prompt, metadata, finished
 
-        self.send_to_router.send_pyobj((adapter_dir, prompt_ids, sampling_params, request_id))
-        event = asyncio.Event()
-        self.req_id_to_out_inf[request_id] = ("", {}, False, event)
-        while True:
-            try:
-                await asyncio.wait_for(event.wait(), timeout=5)
-            except asyncio.TimeoutError:
-                pass
-            event.clear()
-            # request_id is aborted by the backend system for traffic control
-            if request_id not in self.req_id_to_out_inf:
-                yield "", {}, -1
-                break
-            out_str, metadata, finished, _ = self.req_id_to_out_inf[request_id]
-            if len(metadata) != 0:
-                self.req_id_to_out_inf[request_id] = ("", {}, finished, event)
-                metadata["prompt_tokens"] = prompt_tokens
-                yield out_str, metadata, finished
-            if finished:
-                try:
-                    del self.req_id_to_out_inf[request_id]
-                except:
-                    pass
-                break
+        # sampling_params.stop_sentences_to_token_ids(self.tokenizer)
+
+        # send the request to the router
+        # self.send_to_router.send_pyobj((adapter_dir, prompt_ids, sampling_params, request_id))
+
+        # event = asyncio.Event()
+        # self.req_id_to_out_inf[request_id] = ("", {}, False, event)
+        # while True:
+        #     try:
+        #         await asyncio.wait_for(event.wait(), timeout=5)
+        #     except asyncio.TimeoutError:
+        #         pass
+        #     event.clear()
+        #     # request_id is aborted by the backend system for traffic control
+        #     if request_id not in self.req_id_to_out_inf:
+        #         yield "", {}, -1
+        #         break
+        #     out_str, metadata, finished, _ = self.req_id_to_out_inf[request_id]
+        #     if len(metadata) != 0:
+        #         self.req_id_to_out_inf[request_id] = ("", {}, finished, event)
+        #         metadata["prompt_tokens"] = prompt_tokens
+        #         yield out_str, metadata, finished
+        #     if finished:
+        #         try:
+        #             del self.req_id_to_out_inf[request_id]
+        #         except:
+        #             pass
+        #         break
         return
 
     async def abort(self, request_id):
@@ -99,7 +109,11 @@ class HttpServerManager:
     async def handle_loop(self):
         while True:
             recv_ans:Union(BatchStrOut, BatchAbortReq) = await self.recv_from_detokenization.recv_pyobj()
-            assert isinstance(recv_ans, (BatchStrOut, BatchAbortReq)), f"error recv type {type(recv_ans)}"
+            #test
+            temp = BatchStrOut()
+            temp.reqs_infs = [(recv_ans.req_id,-1,{},False,False)]
+            recv_ans = temp
+            # assert isinstance(recv_ans, (BatchStrOut, BatchAbortReq)), f"error recv type {type(recv_ans)}"
             if isinstance(recv_ans, BatchStrOut):
                 for req_id, text, metadata, finished, abort in recv_ans.reqs_infs:
                     try:

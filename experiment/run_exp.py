@@ -22,7 +22,7 @@ import aiohttp
 
 from exp_suite import BenchmarkConfig, get_all_suites, to_dict, BASE_MODEL, LORA_DIR
 from trace import generate_requests, get_real_requests
-sys.path.append("../bench_lora")
+# sys.path.append("../bench_lora")
 from metric import reward, attainment_func
 
 GB = 1024 ** 3
@@ -77,7 +77,9 @@ async def send_request(
         while True:
             async with session.post(url, headers=headers, json=data) as response:
                 chunks = []
+                print("response.status", response)
                 async for chunk, _ in response.content.iter_chunks():
+                    print("chunk", chunk)
                     if first_token_latency is None:
                         first_token_latency = time.time() - request_start_time
                     chunks.append(chunk)
@@ -233,6 +235,8 @@ def run_exp(model_setting, backend, server, config, output, seed=42, debug=False
         requests = generate_requests(num_adapters, alpha, req_rate, cv, duration,
                                     input_range, output_range, on_off, mode, adapter_dirs,
                                     seed=seed)
+        print(len(requests))
+        print(requests[0])
     avg_prompt_len = np.mean([req.prompt_len for req in requests])
     avg_output_len = np.mean([req.output_len for req in requests])
     avg_len = np.mean([req.prompt_len + req.output_len for req in requests])
@@ -280,6 +284,7 @@ if __name__ == "__main__":
         args.output = "debug_" + args.output
 
     suites = get_all_suites(debug=args.debug, suite=args.suite)
+    print(suites)
 
     if not args.append:
         os.system(f"rm {args.output}")

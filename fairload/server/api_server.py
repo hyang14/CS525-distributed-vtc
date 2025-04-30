@@ -74,7 +74,7 @@ async def generate_stream(request: Request) -> Response:
     sample_params_dict = request_dict["parameters"]
     return_details = sample_params_dict.pop("return_details", False)
     sampling_params = SamplingParams(**sample_params_dict)
-    sampling_params.verify()
+    # sampling_params.verify()
 
     if "req_id" in request_dict:
         request_id = request_dict["req_id"]
@@ -85,6 +85,7 @@ async def generate_stream(request: Request) -> Response:
     # Streaming case
     async def stream_results() -> AsyncGenerator[bytes, None]:
         async for request_output, metadata, finished in results_generator:
+            print(request_output)
             ret = {
                 "token": {
                     "id": metadata.get("id", None),

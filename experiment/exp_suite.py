@@ -1,4 +1,5 @@
 from collections import namedtuple
+import itertools
 
 # modify to something usable
 BASE_MODEL = {
@@ -56,7 +57,8 @@ paper_suite = {
         alpha = [-1],
         req_rate = [[1.5, 3]],
         cv = [-1],
-        duration = [60 * 6],
+        # duration = [60 * 6],
+        duration = [10], #debug
         input_range = [[256, 257]],
         output_range = [[256, 257]],
         on_off = [-1],
@@ -332,8 +334,8 @@ def get_all_suites(debug=False, suite=None, breakdown=False):
     assert suite is not None
     if debug:
         exps = [{suite: debug_suite[suite]}]
-    elif breakdown:
-        exps = [{suite: breakdown_suite[suite]}]
+    # elif breakdown:
+    #     exps = [{suite: breakdown_suite[suite]}]
     else:
         exps = [{suite: paper_suite[suite]}]
 

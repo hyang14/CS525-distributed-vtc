@@ -9,3 +9,6 @@ Experiment Sequence
 - launch scheduler `python FairLoad/launch_server.py`
 - launch serving engines
 - lauch experiment `python experiment/run_exp.py`
+
+test code 
+`python experiment/run_exp.py --debug`
