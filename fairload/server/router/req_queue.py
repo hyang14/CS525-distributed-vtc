@@ -39,9 +39,15 @@ class ReqQueue:
     def _can_add_new_req(self, req, lora_ranks):
         self.cache_len_list.append((req.input_len + 1, req.max_output_len - 1)) # hard to analysis
         self.cache_len_list.sort(key=lambda x: -x[1])
-        if req.adapter_dir not in self.adapters:
-            self.adapter_size += lora_ranks[req.adapter_dir] * 4
-            self.adapters.add(req.adapter_dir)
+
+        # Debug and adapt to new sering engine
+        adapter_rank = lora_ranks.get(req.adapter_dir, 0)
+        self.adapter_size += adapter_rank * 4
+        self.adapters.add(req.adapter_dir)
+
+        # if req.adapter_dir not in self.adapters:
+        #     self.adapter_size += lora_ranks[req.adapter_dir] * 4
+        #     self.adapters.add(req.adapter_dir)
         
         left_out_len_array = np.array([e[1] for e in self.cache_len_list])
         # assert left_out_len_array.min() >= 0

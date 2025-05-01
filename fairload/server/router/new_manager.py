@@ -115,6 +115,7 @@ class RouterManagerHTTP:
     async def _consumer_loop(self) -> None:
         while True:
             msg = await self.recv_from_httpserver.recv_pyobj()
+            # print(f'RouterManagerHTTP: received {msg}')
 
             if isinstance(msg, AbortReq):
                 await self._handle_abort(msg.req_id)
@@ -147,7 +148,7 @@ class RouterManagerHTTP:
 
             # Fair scheduler selects next request(s)
             next_batch = self.req_queue.generate_new_batch(
-                running_batch=None, lora_ranks=self.lora_ranks
+                current_batch=None, lora_ranks=self.lora_ranks
             )
             if next_batch is None:
                 # Probably token budget exhausted; wait for completions
@@ -157,6 +158,7 @@ class RouterManagerHTTP:
 
             # Launch each req in the selected batch
             for req in next_batch.reqs:
+                # print(req)
                 self._launch_request_task(req)
 
     # ------------------------------------------------------------------
@@ -170,16 +172,21 @@ class RouterManagerHTTP:
 
     async def _forward_to_engine(self, req: Req) -> None:
         """Stream from engine, relay tokens, then notify scheduler."""
+        print(f"RouterManagerHTTP: starting {req}")
         prompt = self._decode_prompt_ids(req.prompt_ids)
+        # print(f"RouterManagerHTTP: decoded prompt: {prompt}")
         payload = {
-            "model": req.adapter_dir if req.adapter_dir else "default",
+            # "model": req.adapter_dir if req.adapter_dir else "Qwen/Qwen2.5-0.5B",
+            "model": "Qwen/Qwen2.5-0.5B",
             "prompt": prompt,
-            "max_tokens": req.sampling_params.max_new_tokens,
-            "temperature": req.sampling_params.temperature,
-            "top_p": req.sampling_params.top_p,
+            # "max_tokens": req.sampling_params.max_new_tokens,
+            # "temperature": req.sampling_params.temperature,
+            # "top_p": req.sampling_params.top_p,
             "stream": True,
         }
+        print(f"RouterManagerHTTP: payload: {payload}")
         url = f"{self.serving_engine_url}/v1/completions"
+        print(f"RouterManagerHTTP: sending {req.request_id} to {url}")
 
         try:
             assert self.session is not None
