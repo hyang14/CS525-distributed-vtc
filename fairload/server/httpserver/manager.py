@@ -28,7 +28,7 @@ class HttpServerManager:
 
         #debug
         self.recv_from_detokenization = context.socket(zmq.PULL)
-        self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{router_port}")
+        self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{httpserver_port}")
         # self.recv_from_detokenization.bind(f"tcp://127.0.0.1:{httpserver_port}")
 
         try: 
@@ -46,7 +46,7 @@ class HttpServerManager:
     async def generate(self, adapter_dir, prompt, sampling_params, request_id):
 
         # prompt_ids = self.tokenizer.encode(prompt)
-        prompt_ids = []
+        prompt_ids = [prompt]
         prompt_tokens = len(prompt_ids)
         if prompt_tokens > self.max_req_input_len:
             raise ValueError(
@@ -62,39 +62,40 @@ class HttpServerManager:
                 f"the req token total len + 1 (input len + output len + 1) is too long > max_total_token_num:{self.total_token_num}"
             )
         
-            # Directly yield the prompt as output
-        metadata = {"prompt_tokens": prompt_tokens}
-        finished = True
-        yield prompt, metadata, finished
+        # DEBUG Directly yield the prompt as output
+        # metadata = {"prompt_tokens": prompt_tokens}
+        # finished = True
+        # yield prompt, metadata, finished
 
         # sampling_params.stop_sentences_to_token_ids(self.tokenizer)
 
         # send the request to the router
-        # self.send_to_router.send_pyobj((adapter_dir, prompt_ids, sampling_params, request_id))
+        self.send_to_router.send_pyobj((adapter_dir, prompt_ids, sampling_params, request_id))
+        #display the request that router will receive
 
-        # event = asyncio.Event()
-        # self.req_id_to_out_inf[request_id] = ("", {}, False, event)
-        # while True:
-        #     try:
-        #         await asyncio.wait_for(event.wait(), timeout=5)
-        #     except asyncio.TimeoutError:
-        #         pass
-        #     event.clear()
-        #     # request_id is aborted by the backend system for traffic control
-        #     if request_id not in self.req_id_to_out_inf:
-        #         yield "", {}, -1
-        #         break
-        #     out_str, metadata, finished, _ = self.req_id_to_out_inf[request_id]
-        #     if len(metadata) != 0:
-        #         self.req_id_to_out_inf[request_id] = ("", {}, finished, event)
-        #         metadata["prompt_tokens"] = prompt_tokens
-        #         yield out_str, metadata, finished
-        #     if finished:
-        #         try:
-        #             del self.req_id_to_out_inf[request_id]
-        #         except:
-        #             pass
-        #         break
+        event = asyncio.Event()
+        self.req_id_to_out_inf[request_id] = ("", {}, False, event)
+        while True:
+            try:
+                await asyncio.wait_for(event.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                pass
+            event.clear()
+            # request_id is aborted by the backend system for traffic control
+            if request_id not in self.req_id_to_out_inf:
+                yield "", {}, -1
+                break
+            out_str, metadata, finished, _ = self.req_id_to_out_inf[request_id]
+            if len(metadata) != 0:
+                self.req_id_to_out_inf[request_id] = ("", {}, finished, event)
+                metadata["prompt_tokens"] = prompt_tokens
+                yield out_str, metadata, finished
+            if finished:
+                try:
+                    del self.req_id_to_out_inf[request_id]
+                except:
+                    pass
+                break
         return
 
     async def abort(self, request_id):
@@ -109,10 +110,40 @@ class HttpServerManager:
     async def handle_loop(self):
         while True:
             recv_ans:Union(BatchStrOut, BatchAbortReq) = await self.recv_from_detokenization.recv_pyobj()
-            #test
-            temp = BatchStrOut()
-            temp.reqs_infs = [(recv_ans.req_id,-1,{},False,False)]
-            recv_ans = temp
+            print(recv_ans)
+            
+            #debug
+            # if isinstance(recv_ans, tuple) and len(recv_ans) == 4:
+            #     adapter_dir, prompt_ids, sampling_params, request_id = recv_ans
+            #     # print(f"recv from detokenization: {adapter_dir}, {prompt_ids}, {sampling_params}, {request_id}")
+                
+            #     # Simple simulation: just return the decoded prompt as response
+            #     prompt_text = prompt_ids
+                
+            #     # Simulate token generation (just returning the prompt for now)
+            #     # You could implement more complex token generation logic here
+            #     response_text = prompt_text.append(" [SIMULATED RESPONSE]")
+                
+            #     # Create metadata with token counts
+            #     metadata = {
+            #         "generated_tokens": len(prompt_ids),
+            #         "simulation": True
+            #     }
+                
+            #     # Create a BatchStrOut response
+            #     batch_out = BatchStrOut()
+            #     batch_out.reqs_infs = [(request_id, response_text, metadata, True, False)]
+            #     recv_ans = batch_out
+            # else:
+            #     # Unknown message type, create an empty response
+            #     print("unknown message type, create an empty response")
+            #     recv_ans = BatchStrOut()
+            #     recv_ans.reqs_infs = []
+            # #test
+            # adapter_dir, prompt_ids, sampling_params, request_id = recv_ans
+            # temp = BatchStrOut()
+            # temp.reqs_infs = [(request_id,prompt_ids,{},True,False)]
+            # recv_ans = temp
             # assert isinstance(recv_ans, (BatchStrOut, BatchAbortReq)), f"error recv type {type(recv_ans)}"
             if isinstance(recv_ans, BatchStrOut):
                 for req_id, text, metadata, finished, abort in recv_ans.reqs_infs:

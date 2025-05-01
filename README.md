@@ -6,7 +6,7 @@ Dependency Install
 
 Experiment Sequence
 
-- launch scheduler `python FairLoad/launch_server.py`
+- launch scheduler `python FairLoad/launch_server.py`  use `python -m fairload.server.api_server` for now
 - launch serving engines
 - lauch experiment `python experiment/run_exp.py`
 

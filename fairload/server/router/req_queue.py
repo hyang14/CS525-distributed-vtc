@@ -108,3 +108,14 @@ class ReqQueue:
         x, y = num_input_token, num_output_token
         return (0.21001891 * x + 0.10075395 * y +
                 0.0039868 * x * y + 0.00324733 * y * y + 1.14601454)
+
+    # additional function for scheduler 
+    def is_empty(self) -> bool:
+        return len(self.waiting_req_list) == 0
+
+    def finish_req(self, req: Req) -> None:
+        # remove it from the accounting structures the scheduler keeps
+        if req in self.running_req_list:
+            self.running_req_list.remove(req)
+        # Many schedulers track per-user deficit counters; update them.
+        self.update_after_finish(req)      # exists in VTC/* queues

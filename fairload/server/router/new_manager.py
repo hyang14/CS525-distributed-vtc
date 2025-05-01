@@ -274,7 +274,7 @@ def start_router_process(
                 batch_max_tokens=args.batch_max_tokens,
                 running_max_req_size=args.running_max_req_size,
                 scheduler=args.scheduler,
-                fair_weights=args.fair_weights,
+                # fair_weights=args.fair_weights,
             )
             router = RouterManagerHTTP(
                 serving_engine_url=args.serving_engine_url,

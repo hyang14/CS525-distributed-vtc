@@ -215,6 +215,7 @@ def main():
     parser.add_argument("--no-mem-pool", action="store_true")
     parser.add_argument("--bmm", action="store_true")
     parser.add_argument("--no-lora", action="store_true")
+    parser.add_argument("--serving_engine_url", type=str, default="http://localhost:8000",)
     ''' end of slora arguments '''
 
     args = parser.parse_args()
@@ -251,15 +252,16 @@ def main():
         dummy=args.dummy,
     )
     pipe_router_reader, pipe_router_writer = mp.Pipe(duplex=False)
-    pipe_detoken_reader, pipe_detoken_writer = mp.Pipe(duplex=False)
+    # pipe_detoken_reader, pipe_detoken_writer = mp.Pipe(duplex=False)
     proc_router = mp.Process(
         target=start_router_process,
         args=(
             args,
             router_port,
-            detokenization_port,
-            model_rpc_ports,
-            args.mode,
+            httpserver_port,
+            # detokenization_port,
+            # model_rpc_ports,
+            # args.mode,
             pipe_router_writer,
         ),
     )
