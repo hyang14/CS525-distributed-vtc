@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify
 import threading
 import time
 import random
+import sys
 from collections import deque
 
 app = Flask(__name__)
@@ -95,6 +96,7 @@ def medium():
 
 @app.route("/probe", methods=["GET"])
 def probe():
+    time.sleep(0.01)
     rif = get_current_rif()
     median_latency = metric_reporter.get_nearest_latencies(rif)
     return jsonify({
@@ -103,4 +105,5 @@ def probe():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8000)
+    port = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+    app.run(host="0.0.0.0", port=port)
