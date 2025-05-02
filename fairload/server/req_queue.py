@@ -1,5 +1,5 @@
 from collections import deque
-from typing import List
+from typing import List, Optional
 
 class Req():
     def __init__(self, req_id, adapter_dir, inputs, parameters={}, model_dir="gpt2"):
@@ -22,12 +22,12 @@ class ReqQueue():
         # self.waiting_req_list: List[Req] = []
 
         self.user_req_list = {}
-        self.token_severed = {}
+        self.token_served = {}
 
     def update_token(self, req:Req):
-        if req.adapter_dir not in self.token_severed:
-            self.token_severed[req.adapter_dir] = 0
-        self.token_severed[req.adapter_dir] += 1
+        if req.adapter_dir not in self.token_served:
+            self.token_served[req.adapter_dir] = 0
+        self.token_served[req.adapter_dir] += 1
     
     def append(self, req:Req):
         if req.adapter_dir not in self.user_req_list:
@@ -38,24 +38,32 @@ class ReqQueue():
         # waiting queue was empty before
         if len(self.user_req_list[req.adapter_dir]) == 1:
             # lift counter
-            cnts = [v for k, v in self.token_severed.items()
+            cnts = [v for k, v in self.token_served.items()
                       if (len(self.user_req_list[k]) > 0 and k != req.adapter_dir)]
             if len(cnts) > 0:
-                self.token_severed[req.adapter_dir] = max(self.token_severed[req.adapter_dir], min(cnts))
+                self.token_served[req.adapter_dir] = max(self.token_served[req.adapter_dir], min(cnts))
+            else:
+                self.token_served[req.adapter_dir] = 0
 
     # rewrite
     def can_serve(self, req:Req):
         return True
 
-    def generate_next_task(self):
-        active_served = {k: v for k, v in self.served.items()}
+    def generate_next_task(self) -> Optional[Req]:
+        if not self.user_req_list:               # empty
+            return None
+        active_served = {k: v for k, v in self.token_served.items() if len(self.user_req_list[k]) > 0}
+        if not active_served:                    # all empty
+            return None
         adapter_dir = min(active_served, key=active_served.get)
+
+        if not self.user_req_list[adapter_dir]:
+            return None
+
         req = self.user_req_list[adapter_dir][0]
-        
-        # wait until a server is available
-        while True:
-            if self.can_serve(req):
-                break
-        return self.user_req_list[adapter_dir].popleft()
 
+        if not self.can_serve(req):
+            return None
+        next_task = self.user_req_list[adapter_dir].popleft()
 
+        return next_task
