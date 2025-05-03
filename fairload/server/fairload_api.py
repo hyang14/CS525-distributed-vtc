@@ -25,6 +25,7 @@ import aiohttp
 import uvicorn
 
 from .req_queue import ReqQueue, Req
+from .fcfs_queue import FCFSQueue
 
 # ---------- Config -----------------------------------------------------------------
 
@@ -34,17 +35,32 @@ running_max_req_size = 512
 
 isFirst = True
 
-model = "Qwen/Qwen2.5-0.5B"
+model = "facebook/opt-125m"
 
 TIMEOUT_KEEP_ALIVE = 5
 ENGINE_ENDPOINTS = [
-    "http://localhost:8000/v1",  # engine A
+    "http://sp25-cs525-0811.cs.illinois.edu:8000/v1",  # engine A
+    "http://sp25-cs525-0812.cs.illinois.edu:8000/v1"
     # "http://localhost:8000/v1",  # engine B
 ]  # Add more endpoints any time
 
 # ---------- Models -----------------------------------------------------------------
 
+class RoundRobinLoadBalancer:
+    """Very simple round‑robin load balancer across a fixed set of engine endpoints."""
 
+    def __init__(self, engine_endpoints: List[str]):
+        self.engines = engine_endpoints
+        self._idx = 0
+        self._lock = asyncio.Lock()
+
+    async def pick_engine(self) -> str:
+        async with self._lock:
+            url = self.engines[self._idx]
+            self._idx = (self._idx + 1) % len(self.engines)
+            return url
+
+load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
 # class GenerationParameters(BaseModel):
 #     do_sample: bool = False
 #     ignore_eos: bool = True
@@ -187,9 +203,15 @@ app = FastAPI()
 
 # load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
 # scheduler = FIFOScheduler(load_balancer)
-scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+scheduler = FCFSQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 request_queues: Dict[str, asyncio.Queue[bytes]] = {} 
-pending_event   = asyncio.Event()  
+# pending_event   = asyncio.Event()  
+pending_event = None  # Declare it globally but initialize later
+
+@app.on_event("startup")
+async def startup_event():
+    global pending_event
+    pending_event = asyncio.Event()
 
 @app.get("/healthz")
 @app.get("/health")
@@ -204,7 +226,7 @@ async def scheduler_loop() -> None:
             # pending_event.clear()
 
             print("after new request received")
-            print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
+            # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
             # pull the next request according to your ReqQueue policy
             req = scheduler.generate_next_task()        # **your fairness logic**
             if req is None:
@@ -214,7 +236,7 @@ async def scheduler_loop() -> None:
                 pending_event.clear()
                 continue
             print("after new request scheduled")
-            print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
+            # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
 
             # Pull out the queue we’ll write chunks into
             q = request_queues.get(req.req_id)
@@ -230,7 +252,8 @@ async def scheduler_loop() -> None:
                 # **req.parameters,
             }
             try:
-                engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
+                # engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
+                engine_url = f"{await load_balancer.pick_engine()}/completions"
                 async with session.stream("POST", engine_url,
                                            json=payload, timeout=None) as resp:
                     if resp.status_code != 200:
@@ -261,7 +284,7 @@ async def scheduler_loop() -> None:
                         }
 
                         await q.put(("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode("utf-8"))
-                        scheduler.update_token(req)      # keep fairness counters
+                        # scheduler.update_token(req)      # keep fairness counters
 
             except Exception as e:
                 await q.put(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
@@ -273,7 +296,8 @@ async def generate(prompt: str):
     session = httpx.AsyncClient()
     metadata = {}
     finished = False
-    url = f"{ENGINE_ENDPOINTS[0]}/completions"
+    # url = f"{ENGINE_ENDPOINTS[0]}/completions"
+    url = f"{await load_balancer.pick_engine()}/completions"
 
     payload = {
         "model": "Qwen/Qwen2.5-0.5B",
