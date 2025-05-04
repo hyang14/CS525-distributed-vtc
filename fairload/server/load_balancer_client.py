@@ -62,9 +62,9 @@ class Client:
         hot = [p for p in self.probes if self.is_probe_hot(p)]
 
         if cold:
-            selected = min(cold, key=lambda p: p.rif)
+            selected = min(cold, key=lambda p: p.latency)
         elif hot:
-            selected = min(hot, key=lambda p: p.latency)
+            selected = min(hot, key=lambda p: p.rif)
         else:
             return None
 
