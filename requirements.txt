@@ -7,3 +7,5 @@ uvloop
 zmq
 transformers
 httpx
+pandas
+matplotlib

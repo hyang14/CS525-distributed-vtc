@@ -25,6 +25,8 @@ import aiohttp
 import uvicorn
 
 from .req_queue import ReqQueue, Req
+from .fcfs_queue import FCFSQueue
+from .lat_queue import LatQueue
 
 # ---------- Config -----------------------------------------------------------------
 
@@ -122,72 +124,15 @@ ENGINE_ENDPOINTS = [
 #         # tracking fields (tokens used, priority, deadlines…) can be added later
 
 
-# class FIFOScheduler:
-#     """Simple FIFO scheduler: drain incoming requests queue and dispatch to engines.
-#     Replace/extend for more sophisticated fairness or QoS."""
-
-#     def __init__(self, lb: RoundRobinLoadBalancer):
-#         self._in_q: "asyncio.Queue[RequestContext]" = asyncio.Queue()
-#         self._lb = lb
-#         self._tasks: Dict[str, asyncio.Task] = {}
-#         self._shutdown_event = asyncio.Event()
-
-#     async def submit(self, ctx: RequestContext):
-#         await self._in_q.put(ctx)
-
-#     async def abort(self, req_id: str):
-#         task = self._tasks.pop(req_id, None)
-#         if task:
-#             task.cancel()
-
-#     async def run(self):
-#         while not self._shutdown_event.is_set():
-#             ctx: RequestContext = await self._in_q.get()
-#             engine_url = await self._lb.pick_engine()
-#             logging.debug("Dispatching %s to %s", ctx.req_id, engine_url)
-#             task = asyncio.create_task(self._handle_request(ctx, engine_url))
-#             self._tasks[ctx.req_id] = task
-
-#     async def _handle_request(self, ctx: RequestContext, engine_url: str):
-#         engine = EngineClient(engine_url)
-#         try:
-#             async for payload in engine.stream_generate(ctx.data):
-#                 token_text = payload.get("token", {}).get("text", payload.get("text", ""))
-#                 finished = payload.get("finished", False)
-#                 ret = {
-#                     "token": {
-#                         "id": payload.get("token", {}).get("id", None),
-#                         "text": token_text,
-#                         "logprob": payload.get("token", {}).get("logprob", None),
-#                         "special": False,
-#                     },
-#                     "generated_text": None,
-#                     "finished": finished,
-#                     "details": None,
-#                 }
-#                 await ctx.out_q.put(("data:" + json.dumps(ret, ensure_ascii=False) + "\n\n").encode("utf‑8"))
-#                 if finished:
-#                     break
-#         except Exception as exc:
-#             logging.exception("Engine stream failed for %s", ctx.req_id)
-#             await ctx.out_q.put(("data:" + json.dumps({"details": str(exc)}, ensure_ascii=False) + "\n\n").encode("utf‑8"))
-#         finally:
-#             await ctx.out_q.put(None)  # signal end of stream
-#             await engine.close()
-
-#     async def shutdown(self):
-#         self._shutdown_event.set()
-#         for t in self._tasks.values():
-#             t.cancel()
-
-
 # ---------- FastAPI Setup ----------------------------------------------------------
 
 app = FastAPI()
 
 # load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
 # scheduler = FIFOScheduler(load_balancer)
-scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+# scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+# scheduler = FCFSQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 request_queues: Dict[str, asyncio.Queue[bytes]] = {} 
 pending_event   = asyncio.Event()  
 
@@ -199,12 +144,9 @@ def healthcheck():
 async def scheduler_loop() -> None:
     async with httpx.AsyncClient() as session:
         while True:
-            # wait until work is available
-            # await pending_event.wait()
-            # pending_event.clear()
 
             print("after new request received")
-            print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
+            # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
             # pull the next request according to your ReqQueue policy
             req = scheduler.generate_next_task()        # **your fairness logic**
             if req is None:
@@ -214,7 +156,7 @@ async def scheduler_loop() -> None:
                 pending_event.clear()
                 continue
             print("after new request scheduled")
-            print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
+            # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
 
             # Pull out the queue we’ll write chunks into
             q = request_queues.get(req.req_id)
@@ -261,12 +203,14 @@ async def scheduler_loop() -> None:
                         }
 
                         await q.put(("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode("utf-8"))
-                        scheduler.update_token(req)      # keep fairness counters
+                        # scheduler.update_token(req)      # keep fairness counters
+                        
 
             except Exception as e:
                 await q.put(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
 
             # tell the client we’re done
+            scheduler.update_time(req)
             await q.put(None)
 
 async def generate(prompt: str):
@@ -346,42 +290,6 @@ async def generate_stream(request: Request):
     # print('error check')
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
-    # return StreamingResponse(generate(prompt), media_type="text/plain")
-
-# async def generate_stream(request: Request, background_tasks=None):
-#     req_id = request.req_id or str(uuid.uuid4())
-#     request_dict = await request.json()
-#     # request_payload = request.dict(by_alias=True)
-#     adapter_dir = request_dict["lora_dir"] if "lora_dir" in request_dict else None
-#     prompt = request_dict.pop("inputs")
-#     request_dict["req_id"] = req_id
-
-    # out_q: "asyncio.Queue[Optional[bytes]]" = asyncio.Queue(maxsize=100)
-
-    # ctx = RequestContext(request_payload, out_q)
-    # await scheduler.submit(ctx)
-
-    # async def stream_results() -> AsyncGenerator[bytes, None]:
-    #     while True:
-    #         chunk = await out_q.get()
-    #         if chunk is None:
-    #             break
-    #         yield chunk
-
-    # async def abort_request() -> None:
-    #     await scheduler.abort(req_id)
-    
-    # if background_tasks is None:
-    #     background_tasks = BackgroundTasks()
-    # background_tasks.add_task(abort_request)
-
-    # return StreamingResponse(
-    #     stream_results(),
-    #     media_type="text/event-stream",
-    #     headers={"X-Request-ID": req_id},
-    #     background=background_tasks,
-    # )
-
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--host", type=str, default="127.0.0.1")
@@ -396,7 +304,6 @@ def main():
         timeout_keep_alive=TIMEOUT_KEEP_ALIVE,
         loop="uvloop",
     )
-    # asyncio.create_task(scheduler_loop())
 
 if __name__ == "__main__":
     main()
