@@ -103,7 +103,7 @@ def probe():
     time.sleep(0.01)
     rif = get_current_rif()
     median_latency = metric_reporter.get_nearest_latencies(rif)
-    print(f"[PROBE DEBUG] RIF={current_rif}, Latency={median_latency}")
+    print(f"[PROBE DEBUG] RIF={rif}, Latency={median_latency}")
     return jsonify({
         "rif": rif,
         "latency": median_latency
