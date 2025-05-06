@@ -31,7 +31,7 @@ class MetricReporter:
             top_k = sorted_by_diff[:5]
             if not top_k:
                 print(f"[WARNING] Could not find any latency samples near RIF={rif}. Returning fallback latency.")
-            r   eturn 0.001
+                return 0.001
             latencies = sorted([m.latency for m in top_k])
             return latencies[len(latencies) // 2]
 
