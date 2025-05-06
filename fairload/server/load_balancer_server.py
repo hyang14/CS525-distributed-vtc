@@ -33,7 +33,12 @@ class MetricReporter:
                 print(f"[WARNING] Could not find any latency samples near RIF={rif}. Returning fallback latency.")
                 return 0.001
             latencies = sorted([m.latency for m in top_k])
-            return latencies[len(latencies) // 2]
+            median_latency = latencies[len(latencies) // 2]
+            if median_latency == 0.0:
+                print(f"[WARNING] Median latency is zero — likely invalid. Returning fallback latency.")
+                return 0.001
+            return median_latency
+
 
 metric_reporter = MetricReporter()
 rif_counter = 0
@@ -78,6 +83,7 @@ def ping():
     rif = increment_rif()
     start = time.time()
     try:
+        time.sleep(0.02)
         return jsonify({"message": "pong"})
     finally:
         duration = time.time() - start
