@@ -25,9 +25,13 @@ class MetricReporter:
     def get_nearest_latencies(self, rif):
         with self.lock:
             if not self.metrics:
-                return 0.0
+                print(f"[WARNING] No latency data available yet for any RIF. Returning fallback latency.")
+                return 0.001
             sorted_by_diff = sorted(self.metrics, key=lambda m: abs(m.rif - rif))
             top_k = sorted_by_diff[:5]
+            if not top_k:
+                print(f"[WARNING] Could not find any latency samples near RIF={rif}. Returning fallback latency.")
+            r   eturn 0.001
             latencies = sorted([m.latency for m in top_k])
             return latencies[len(latencies) // 2]
 
@@ -99,6 +103,7 @@ def probe():
     time.sleep(0.01)
     rif = get_current_rif()
     median_latency = metric_reporter.get_nearest_latencies(rif)
+    print(f"[PROBE DEBUG] RIF={current_rif}, Latency={median_latency}")
     return jsonify({
         "rif": rif,
         "latency": median_latency

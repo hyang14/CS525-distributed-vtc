@@ -58,6 +58,11 @@ class Client:
         return server
 
     def _select_hcl(self) -> Optional[str]:
+        print("\n[DEBUG] Current Probe Pool:")
+        for p in self.probes:
+            print(f"  Server: {p.server_id}, RIF: {p.rif}, Latency: {p.latency:.3f}, "
+                  f"NormRIF: {p.normalized_rif:.2f}, UseCount: {p.use_count}, "
+                  f"{'HOT' if self.is_probe_hot(p) else 'COLD'}")
         cold = [p for p in self.probes if not self.is_probe_hot(p)]
         hot = [p for p in self.probes if self.is_probe_hot(p)]
 
