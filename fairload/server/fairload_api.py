@@ -14,6 +14,7 @@ import argparse
 from fastapi import FastAPI, BackgroundTasks, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
+from .load_balancer_client import Client
 from typing import List, Dict, Any, AsyncGenerator, Optional
 import asyncio
 import httpx
@@ -43,6 +44,23 @@ ENGINE_ENDPOINTS = [
     "http://localhost:8000/v1",  # engine A
     # "http://localhost:8000/v1",  # engine B
 ]  # Add more endpoints any time
+
+load_balancer_config = {
+    "max_probe_pool_size": 16,
+    "num_replicas": 3,
+    "probe_rate": 1.0,
+    "q_rif_threshold": 0.2,
+    "delta_reuse": 0.1,
+    "max_probe_age": 5,
+    "max_probe_use": 3,
+    "servers": [
+        "sp25-cs525-0806.cs.illinois.edu:8006",
+        "sp25-cs525-0808.cs.illinois.edu:8008",
+        "sp25-cs525-0809.cs.illinois.edu:8009",
+        "sp25-cs525-0810.cs.illinois.edu:8010"
+    ]
+}
+load_balancer = Client(config=load_balancer_config, servers=load_balancer_config["servers"], mode="hcl")
 
 # ---------- Models -----------------------------------------------------------------
 
@@ -172,7 +190,11 @@ async def scheduler_loop() -> None:
                 # **req.parameters,
             }
             try:
-                engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
+                # engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
+                engine_base = load_balancer.select_replica("batch")  # or "ping"/"medium" depending on req type
+                if not engine_base:
+                    raise RuntimeError("No replica available from load balancer")
+                engine_url = f"http://{engine_base}/v1/completions"
                 async with session.stream("POST", engine_url,
                                            json=payload, timeout=None) as resp:
                     if resp.status_code != 200:
@@ -289,6 +311,10 @@ async def generate_stream(request: Request):
             request_queues.pop(req_id, None)
     # print('error check')
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+@app.on_event("shutdown")
+def shutdown_event():
+    load_balancer.stop()
 
 def main():
     parser = argparse.ArgumentParser()
