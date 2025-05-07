@@ -37,7 +37,7 @@ running_max_req_size = 512
 
 isFirst = True
 
-model = "Qwen/Qwen2.5-0.5B"
+model = "facebook/opt-125m"
 
 TIMEOUT_KEEP_ALIVE = 5
 ENGINE_ENDPOINTS = [
@@ -54,10 +54,10 @@ load_balancer_config = {
     "max_probe_age": 5,
     "max_probe_use": 3,
     "servers": [
-        "sp25-cs525-0806.cs.illinois.edu:8006",
+        # "sp25-cs525-0806.cs.illinois.edu:8006",
         "sp25-cs525-0808.cs.illinois.edu:8008",
         "sp25-cs525-0809.cs.illinois.edu:8009",
-        "sp25-cs525-0810.cs.illinois.edu:8010"
+        # "sp25-cs525-0810.cs.illinois.edu:8010"
     ]
 }
 load_balancer = Client(config=load_balancer_config, servers=load_balancer_config["servers"], mode="hcl")
@@ -152,8 +152,11 @@ app = FastAPI()
 # scheduler = FCFSQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 request_queues: Dict[str, asyncio.Queue[bytes]] = {} 
-pending_event   = asyncio.Event()  
-
+pending_event   = None 
+@app.on_event("startup")
+async def startup_event():
+    global pending_event
+    pending_event = asyncio.Event()
 @app.get("/healthz")
 @app.get("/health")
 def healthcheck():
@@ -194,6 +197,7 @@ async def scheduler_loop() -> None:
                 engine_base = load_balancer.select_replica("batch")  # or "ping"/"medium" depending on req type
                 if not engine_base:
                     raise RuntimeError("No replica available from load balancer")
+                engine_base = engine_base[:-4]+"8000"
                 engine_url = f"http://{engine_base}/v1/completions"
                 async with session.stream("POST", engine_url,
                                            json=payload, timeout=None) as resp:
