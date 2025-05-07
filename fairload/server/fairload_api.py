@@ -40,9 +40,28 @@ model = "Qwen/Qwen2.5-0.5B"
 
 TIMEOUT_KEEP_ALIVE = 5
 ENGINE_ENDPOINTS = [
-    "http://localhost:8000/v1",  # engine A
+    "http://localhost:8000/v1"  # engine A
     # "http://localhost:8000/v1",  # engine B
+    # "http://sp25-cs525-0811.cs.illinois.edu:8000/v1",  # remote engine A
+    # "http://sp25-cs525-0812.cs.illinois.edu:8000/v1"
 ]  # Add more endpoints any time
+
+#---------------------------Round Robin Scheduler-------------------------
+class RoundRobinLoadBalancer:
+    """Very simple round‑robin load balancer across a fixed set of engine endpoints."""
+
+    def __init__(self, engine_endpoints: List[str]):
+        self.engines = engine_endpoints
+        self._idx = 0
+        self._lock = asyncio.Lock()
+
+    async def pick_engine(self) -> str:
+        async with self._lock:
+            url = self.engines[self._idx]
+            self._idx = (self._idx + 1) % len(self.engines)
+            return url
+
+load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
 
 # ---------- FastAPI Setup ----------------------------------------------------------
 
@@ -92,7 +111,8 @@ async def scheduler_loop() -> None:
                 # **req.parameters,
             }
             try:
-                engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
+                engine_url = f"{await load_balancer.pick_engine()}/completions"
+                # engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
                 async with session.stream("POST", engine_url,
                                            json=payload, timeout=None) as resp:
                     if resp.status_code != 200:
