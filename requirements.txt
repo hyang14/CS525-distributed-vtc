@@ -1,0 +1,11 @@
+aiohttp
+numpy
+tqdm
+fastapi
+uvicorn
+uvloop
+zmq
+transformers
+httpx
+pandas
+matplotlib

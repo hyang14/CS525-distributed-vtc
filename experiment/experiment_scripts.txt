@@ -1,0 +1,4 @@
+python experiment/run_exp.py --suite overload --output result/debug.jsonl
+
+python run_exp.py --suite real --output ../all_results_real_vtc.jsonl
+
