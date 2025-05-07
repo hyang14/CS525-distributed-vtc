@@ -44,95 +44,13 @@ ENGINE_ENDPOINTS = [
     # "http://localhost:8000/v1",  # engine B
 ]  # Add more endpoints any time
 
-# ---------- Models -----------------------------------------------------------------
-
-
-# class GenerationParameters(BaseModel):
-#     do_sample: bool = False
-#     ignore_eos: bool = True
-#     max_new_tokens: int = 128
-#     temperature: Optional[float] = None
-
-
-# class GenerateRequest(BaseModel):
-#     model_dir: str
-#     lora_dir: Optional[str] = Field(None, alias="adapter_dir")
-#     inputs: str = Field(..., alias="prompt")
-#     parameters: GenerationParameters
-#     req_id: Optional[str] = None
-
-#     class Config:
-#         allow_population_by_field_name = True
-
-
-# ---------- Core Components ---------------------------------------------------------
-
-
-# class EngineClient:
-#     """Adapter responsible for talking to an OpenAI‑compatible engine and yielding
-#     partial tokens as they arrive via SSE/streaming HTTP."""
-
-#     def __init__(self, engine_base_url: str):
-#         self.engine_base_url = engine_base_url.rstrip("/")
-#         self.session = httpx.AsyncClient()
-
-#     async def stream_generate(self, payload: Dict[str, Any]) -> AsyncGenerator[Dict[str, Any], None]:
-#         url = f"{self.engine_base_url}/v1/completions"
-#         async with self.session.stream("POST", url, json=payload, timeout=None) as resp:
-#             if resp.status_code != 200:
-#                 raise HTTPException(status_code=502, detail=f"Engine error {resp.status_code}")
-#             async for line in resp.aiter_lines():
-#                 if not line:
-#                     continue
-#                 if line.startswith("data:"):
-#                     data_part = line[len("data:") :]
-#                     if data_part.strip() == "[DONE]":
-#                         break
-#                     try:
-#                         yield json.loads(data_part)
-#                     except json.JSONDecodeError:
-#                         logging.warning("Malformed JSON from engine: %s", data_part)
-#                 else:
-#                     logging.debug("Skipping non‑data line: %s", line)
-
-#     async def close(self):
-#         await self.session.aclose()
-
-
-# class RoundRobinLoadBalancer:
-#     """Very simple round‑robin load balancer across a fixed set of engine endpoints."""
-
-#     def __init__(self, engine_endpoints: List[str]):
-#         self.engines = engine_endpoints
-#         self._idx = 0
-#         self._lock = asyncio.Lock()
-
-#     async def pick_engine(self) -> str:
-#         async with self._lock:
-#             url = self.engines[self._idx]
-#             self._idx = (self._idx + 1) % len(self.engines)
-#             return url
-
-
-# class RequestContext:
-#     """Wraps everything the scheduler needs to process a request."""
-
-#     def __init__(self, data: Dict[str, Any], out_q: "asyncio.Queue[Optional[bytes]]"):
-#         self.data = data
-#         self.req_id = data["req_id"]
-#         self.out_q = out_q
-#         # tracking fields (tokens used, priority, deadlines…) can be added later
-
-
 # ---------- FastAPI Setup ----------------------------------------------------------
 
 app = FastAPI()
 
-# load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
-# scheduler = FIFOScheduler(load_balancer)
-# scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 # scheduler = FCFSQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
-scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+# scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 request_queues: Dict[str, asyncio.Queue[bytes]] = {} 
 pending_event   = asyncio.Event()  
 
@@ -145,17 +63,19 @@ async def scheduler_loop() -> None:
     async with httpx.AsyncClient() as session:
         while True:
 
-            print("after new request received")
+            # print("after new request received")
             # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
             # pull the next request according to your ReqQueue policy
             req = scheduler.generate_next_task()        # **your fairness logic**
             if req is None:
-                print("No request to process")
+                # print("No request to process")
                 # wait until work is available
                 await pending_event.wait()
                 pending_event.clear()
+                
                 continue
-            print("after new request scheduled")
+            # print("after new request scheduled")
+            print(req)
             # print([(user, len(requests)) for user, requests in scheduler.user_req_list.items()])
 
             # Pull out the queue we’ll write chunks into
@@ -203,14 +123,14 @@ async def scheduler_loop() -> None:
                         }
 
                         await q.put(("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode("utf-8"))
-                        # scheduler.update_token(req)      # keep fairness counters
+                        scheduler.update_token(req)      # keep fairness counters
                         
 
             except Exception as e:
                 await q.put(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
 
             # tell the client we’re done
-            scheduler.update_time(req)
+            # scheduler.update_time(req)
             await q.put(None)
 
 async def generate(prompt: str):

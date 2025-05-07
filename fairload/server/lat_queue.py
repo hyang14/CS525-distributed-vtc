@@ -28,8 +28,8 @@ class LatQueue():
 
     # update time when request is done
     def update_time(self, req:Req):
-        self.last_token_time[req.adapter_dir] = time.time()
         self.active_user_req[req.adapter_dir] = max(0, self.active_user_req[req.adapter_dir] - 1)
+        self.last_token_time[req.adapter_dir] = time.time() if self.active_user_req[req.adapter_dir] ==  0 else float('inf')
 
         # if req.adapter_dir not in self.token_served:
         #     self.token_served[req.adapter_dir] = 0

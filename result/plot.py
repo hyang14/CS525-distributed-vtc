@@ -108,9 +108,9 @@ def cum_service_gap(df: pd.DataFrame) -> pd.DataFrame:
 # 1️⃣  Load the traces for the two schedulers you want to compare
 #     (replace with your real paths)
 traces = {
-    "VTC":  load_trace("/home/lyang/cs525/CS525-distributed-vtc/result/vtc_result.jsonl"),
+    "VTC":  load_trace("/home/lyang/cs525/CS525-distributed-vtc/result/adj_vtc.jsonl"),
     "FCFS": load_trace("/home/lyang/cs525/CS525-distributed-vtc/result/fcfs_result.jsonl"),
-    "LATQ": load_trace("/home/lyang/cs525/CS525-distributed-vtc/result/debug.jsonl"),
+    "LATQ": load_trace("/home/lyang/cs525/CS525-distributed-vtc/result/adj_latq.jsonl"),
 }
 
 # 2️⃣  Build the gap curves
@@ -155,5 +155,5 @@ plt.legend()
 plt.xlim(0, 150)
 plt.ylim(0, 1000)
 plt.tight_layout()
-plt.savefig("abs_gap_over_time.svg")   # PDF/PGF/etc. work too
+plt.savefig("abs_gap_over_time_adj.svg")   # PDF/PGF/etc. work too
 plt.show()

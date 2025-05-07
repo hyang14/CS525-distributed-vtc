@@ -212,13 +212,19 @@ def run_exp(model_setting, backend, server, config, output, seed=42, debug=False
     adapter_dirs = LORA_DIR[model_setting]
     if mode == "real":
         print("*** num_adapters, cv and alpha are not used in real mode ***")
-        pkl_file_path = "real_trace.pkl"
+        pkl_file_path = "./real_trace.pkl"
+        print("load real trace from", pkl_file_path)
         if os.path.exists(pkl_file_path):
+            print("load successfully")
             with open(pkl_file_path, "rb") as pkl_file:
                 obj = pickle.load(pkl_file)
             adapter_dirs, requests = obj[0], obj[1]
+            print("num_adapters", len(adapter_dirs), "num_requests", len(requests))
+            
+            print(vars(requests[0]))
+
         else:
-            adapter_dirs, requests = get_real_requests(trace_file="dummy_chat_conv_20231016.json",
+            adapter_dirs, requests = get_real_requests(trace_file="./dummy_chat_conv_20231016.json",
                                                        req_rate=req_rate, duration=duration,
                                                        base_model=base_model, adapter_dirs=adapter_dirs,
                                                        input_range=input_range, output_range=output_range,
@@ -242,7 +248,6 @@ def run_exp(model_setting, backend, server, config, output, seed=42, debug=False
     avg_len = np.mean([req.prompt_len + req.output_len for req in requests])
     max_len = np.max([req.prompt_len + req.output_len for req in requests])
     print("num_adapters", len(adapter_dirs), "num_requests", len(requests), "avg_len:", avg_len, "avg_prompt_len:", avg_prompt_len, "avg_output_len:", avg_output_len, "max_len:", max_len)
-       
     if debug:
         print("num requests:", len(requests))
         for req in requests[:4]:

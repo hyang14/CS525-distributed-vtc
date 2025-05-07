@@ -40,8 +40,10 @@ class ReqQueue():
             # lift counter
             cnts = [v for k, v in self.token_served.items()
                       if (len(self.user_req_list[k]) > 0 and k != req.adapter_dir)]
-            if len(cnts) > 0:
+            if len(cnts) > 0 and req.adapter_dir in self.token_served:
                 self.token_served[req.adapter_dir] = max(self.token_served[req.adapter_dir], min(cnts))
+            elif len(cnts) > 0:
+                self.token_served[req.adapter_dir] = min(cnts)
             else:
                 self.token_served[req.adapter_dir] = 0
 
@@ -52,6 +54,7 @@ class ReqQueue():
     def generate_next_task(self) -> Optional[Req]:
         if not self.user_req_list:               # empty
             return None
+        
         active_served = {k: v for k, v in self.token_served.items() if len(self.user_req_list[k]) > 0}
         if not active_served:                    # all empty
             return None
@@ -65,5 +68,9 @@ class ReqQueue():
         if not self.can_serve(req):
             return None
         next_task = self.user_req_list[adapter_dir].popleft()
-
+        print(f"next task: {next_task.req_id}, adapter_dir: {adapter_dir}, task_len: {len(self.user_req_list[adapter_dir])}")
+        #print any remaining tasks in self.user_req_list[adapter_dir]
+        user_remaining_tasks = [len(tasks) for tasks in self.user_req_list.values() if len(tasks) > 0]
+        print(user_remaining_tasks)
+        
         return next_task
