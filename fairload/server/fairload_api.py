@@ -36,14 +36,16 @@ running_max_req_size = 512
 
 isFirst = True
 
-model = "Qwen/Qwen2.5-0.5B"
+model = "facebook/opt-125m"
 
 TIMEOUT_KEEP_ALIVE = 5
 ENGINE_ENDPOINTS = [
-    "http://localhost:8000/v1"  # engine A
+    # "http://localhost:8000/v1"  # engine A
     # "http://localhost:8000/v1",  # engine B
-    # "http://sp25-cs525-0811.cs.illinois.edu:8000/v1",  # remote engine A
-    # "http://sp25-cs525-0812.cs.illinois.edu:8000/v1"
+    "http://sp25-cs525-0811.cs.illinois.edu:8000/v1",  # remote engine A
+    "http://sp25-cs525-0812.cs.illinois.edu:8000/v1",
+    "http://sp25-cs525-0808.cs.illinois.edu:8000/v1",  # remote engine A
+    "http://sp25-cs525-0809.cs.illinois.edu:8000/v1"
 ]  # Add more endpoints any time
 
 #---------------------------Round Robin Scheduler-------------------------
@@ -67,11 +69,16 @@ load_balancer = RoundRobinLoadBalancer(ENGINE_ENDPOINTS)
 
 app = FastAPI()
 
-scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+# scheduler = ReqQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 # scheduler = FCFSQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
-# scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
+scheduler = LatQueue(max_total_tokens, batch_max_tokens, running_max_req_size)
 request_queues: Dict[str, asyncio.Queue[bytes]] = {} 
-pending_event   = asyncio.Event()  
+pending_event   = None
+@app.on_event("startup")
+async def startup_event():
+    global pending_event
+    pending_event = asyncio.Event()
+
 
 @app.get("/healthz")
 @app.get("/health")
@@ -143,14 +150,14 @@ async def scheduler_loop() -> None:
                         }
 
                         await q.put(("data:" + json.dumps(ret, ensure_ascii=False) + f"\n\n").encode("utf-8"))
-                        scheduler.update_token(req)      # keep fairness counters
+                        # scheduler.update_token(req)      # keep fairness counters
                         
 
             except Exception as e:
                 await q.put(f"data: {json.dumps({'error': str(e)})}\n\n".encode())
 
             # tell the client we’re done
-            # scheduler.update_time(req)
+            scheduler.update_time(req)
             await q.put(None)
 
 async def generate(prompt: str):
