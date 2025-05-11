@@ -3,3 +3,4 @@
 /cs525project
 __pycache__/
 *.pyc
+/debug/
