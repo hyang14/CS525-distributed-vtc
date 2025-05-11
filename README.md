@@ -9,7 +9,7 @@ Experiment Sequence
 - launch scheduler `python FairLoad/launch_server.py`  use `python -m fairload.server.api_server` for now
 - launch serving engines
 - lauch experiment `python experiment/run_exp.py` use `python experiment/run_exp.py --suite overload --output result/debug.jsonl` for now
-
+`python run_exp.py --suite real --output ../result/vtc_results_real.jsonl`
 test code 
 `python experiment/run_exp.py --debug`
 
