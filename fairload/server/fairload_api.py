@@ -194,7 +194,7 @@ async def scheduler_loop() -> None:
             }
             try:
                 # engine_url = f"{ENGINE_ENDPOINTS[0]}/completions"
-                engine_base = load_balancer.select_replica("batch")  # or "ping"/"medium" depending on req type
+                engine_base = load_balancer.select_replica("ping")  # or "ping"/"medium" depending on req type
                 if not engine_base:
                     raise RuntimeError("No replica available from load balancer")
                 engine_base = engine_base[:-4]+"8000"
